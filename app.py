@@ -35,20 +35,34 @@ def save(group, record, remove=False):
     except ValueError as error:
         st.error(str(error))
         return
+    state.pop(group + "_editing", None)
     state[group] = updated
     state[group + "_revision"] += 1
     state.result = None
     st.rerun()
 
 
-def editor(group, label, display):
-    prefix = f"{group}_{state[group + '_revision']}"
-    records = state[group]
-    labels = {key: f"{i}. {display(item)}" for i, (key, item) in enumerate(records.items(), 1)}
-    selected = st.selectbox(label, [None, *records],
-                            format_func=lambda key: "새로 등록" if key is None else labels[key],
-                            key=prefix)
-    return records.get(selected), f"{prefix}_{selected}"
+def select_record(group, record_id):
+    state[group + "_editing"] = record_id
+    state[group + "_revision"] += 1
+
+
+def editor(group, label):
+    selected = state.get(group + "_editing")
+    if selected is not None:
+        st.subheader(f"{label} 수정")
+        st.button("수정 취소", key=group + "_cancel", on_click=select_record, args=(group, None))
+    return state[group].get(selected), f"{group}_{state[group + '_revision']}_{selected}"
+
+
+def saved_records(group, title, describe):
+    if state[group]:
+        st.subheader(title)
+    for record in state[group].values():
+        summary, action = st.columns([4, 1])
+        summary.text(describe(record))
+        action.button("수정", key=f"edit_{group}_{record.id}", on_click=select_record,
+                      args=(group, record.id))
 
 
 def pick(label, default, key):
@@ -56,7 +70,7 @@ def pick(label, default, key):
 
 
 def participants():
-    p, key = editor("people", "참여자 선택", lambda p: p.name)
+    p, key = editor("people", "참여자")
     name = st.text_input("참여자 이름", value=p.name if p else "", key=key + "_name").strip()
     if st.button("참여자 저장"):
         if not name:
@@ -73,12 +87,10 @@ def participants():
             st.error("이 참여자를 참조하는 지출이나 기존 송금을 먼저 수정하거나 삭제하세요.")
         else:
             save("people", p, remove=True)
-    if people:
-        st.table([{"등록 순서": p.registration_order, "이름": p.name} for p in people])
 
 
 def expenses():
-    e, key = editor("expenses", "지출 선택", lambda e: f"{e.title} · {names[e.payer_id]} · {won(e.amount)}")
+    e, key = editor("expenses", "지출")
     title = st.text_input("지출명", value=e.title if e else "", key=key + "_title")
     payer = pick("결제자", e.payer_id if e else ids[0], key + "_payer")
     amount = st.number_input("지출 금액(원)", min_value=0, value=e.amount if e else 0, key=key + "_amount")
@@ -117,8 +129,7 @@ def expenses():
 
 
 def transfers():
-    t, key = editor("transfers", "기존 송금 선택",
-                    lambda t: f"{names[t.sender_id]} → {names[t.receiver_id]} · {won(t.amount)}")
+    t, key = editor("transfers", "기존 송금")
     sender = pick("송금자", t.sender_id if t else ids[0], key + "_sender")
     receiver = pick("수령자", t.receiver_id if t else ids[1], key + "_receiver")
     amount = st.number_input("이미 보낸 금액(원)", min_value=0, value=t.amount if t else 0, key=key + "_amount")
@@ -176,9 +187,15 @@ def results():
 person_tab, expense_tab, transfer_tab, result_tab = st.tabs(["참여자", "지출", "기존 송금", "정산 결과"])
 with person_tab:
     participants()
+    saved_records("people", "등록된 참여자", lambda p: f"{p.registration_order}. {p.name}")
 for tab, render in ((expense_tab, expenses), (transfer_tab, transfers), (result_tab, results)):
     with tab:
         if len(people) < 2:
             st.info("참여자를 2명 이상 등록하세요.")
         else:
             render()
+            if tab is expense_tab:
+                saved_records("expenses", "저장된 지출", lambda e: f"{e.title} · {names[e.payer_id]} · {won(e.amount)}")
+            elif tab is transfer_tab:
+                saved_records("transfers", "기존 송금 내역",
+                              lambda t: f"{names[t.sender_id]} → {names[t.receiver_id]} · {won(t.amount)}")
