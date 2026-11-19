@@ -46,7 +46,7 @@ class SettlementScreenTests(unittest.TestCase):
         self.assertEqual([r.net for r in rows.values()], [16000, -4000, -12000])
         self.assertEqual([p.amount for p in result.plan], [12000, 4000])
         transfer = next(iter(self.app.session_state["transfers"]))
-        self.widget("selectbox", "기존 송금 선택").select(transfer).run()
+        self.app.button(key=f"edit_transfers_{transfer}").click().run()
         self.widget("number_input", "이미 보낸 금액(원)").set_value(5000)
         self.click("기존 송금 저장")
         self.assertIsNone(self.app.session_state["result"])
@@ -69,7 +69,7 @@ class SettlementScreenTests(unittest.TestCase):
         self.register("AB")
         self.expense("식비", "A", 101, "AB")
         self.click("정산 계산")
-        self.widget("selectbox", "참여자 선택").select(self.ids["A"]).run()
+        self.app.button(key=f"edit_people_{self.ids['A']}").click().run()
         self.click("참여자 삭제")
         self.assertTrue(self.app.error)
         self.assertIsNotNone(self.app.session_state["result"])
@@ -83,3 +83,14 @@ class SettlementScreenTests(unittest.TestCase):
         self.click("정산 계산")
         rows, _ = self.app.session_state["result"]
         self.assertEqual(rows[self.ids["A"]].owed, 51)
+
+    def test_cancel_expense_edit_returns_to_new_entry(self):
+        self.register("AB")
+        self.expense("식비", "A", 100, "AB")
+        expense_id = next(iter(self.app.session_state["expenses"]))
+        self.app.button(key=f"edit_expenses_{expense_id}").click().run()
+        self.assertEqual(self.widget("text_input", "지출명").value, "식비")
+        self.widget("text_input", "지출명").input("교통비")
+        self.app.button(key="expenses_cancel").click().run()
+        self.assertEqual(self.widget("text_input", "지출명").value, "")
+        self.assertEqual(self.app.session_state["expenses"][expense_id].title, "식비")
