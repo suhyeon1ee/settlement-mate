@@ -6,8 +6,24 @@ from settlement.balances import calculate_balances, split_expense
 from settlement.models import Expense, Participant, Share, Transfer
 
 
-st.set_page_config(page_title="정산메이트")
-st.title("정산메이트")
+st.set_page_config(page_title="정산메이트 · 공동 경비 정산", page_icon="🧾")
+st.markdown("""
+<style>
+.st-key-intro {
+    background: #123f39;
+    color: #fff;
+    border-radius: 18px;
+    padding: clamp(1.25rem, 4vw, 2rem);
+    margin-bottom: .85rem;
+}
+.st-key-intro h1 { color: #fff; padding: 0 0 .5rem; font-weight: 750; }
+.st-key-intro p { color: #e1f4ed; margin: 0; line-height: 1.7; }
+.st-key-intro h1 a { display: none; }
+</style>
+""", unsafe_allow_html=True)
+with st.container(key="intro"):
+    st.title("정산메이트")
+    st.write("함께 쓴 경비를 입력하면 누가 누구에게 얼마를 보내야 하는지 계산하고, 송금 횟수가 가장 적은 정산안을 찾아요.")
 state = st.session_state
 for group in ("people", "expenses", "transfers"):
     state.setdefault(group, {})
@@ -71,8 +87,16 @@ def pick(label, default, key):
 
 def participants():
     p, key = editor("people", "참여자")
-    name = st.text_input("참여자 이름", value=p.name if p else "", key=key + "_name").strip()
-    if st.button("참여자 저장"):
+    if p is None:
+        if not people:
+            st.write("함께 경비를 나눈 사람의 이름을 한 명씩 등록하세요.")
+        elif len(people) == 1:
+            st.write("한 명 더 등록하면 지출을 입력할 수 있어요.")
+        else:
+            st.caption("등록을 마쳤다면 ‘지출’ 탭에서 첫 결제 내역을 입력하세요." if not state.expenses
+                       else "새로 참여한 사람이 있으면 추가하세요.")
+    name = st.text_input("참여자 이름", placeholder="예: A", value=p.name if p else "", key=key + "_name").strip()
+    if st.button("참여자 저장", type="primary"):
         if not name:
             st.error("참여자 이름을 입력하세요.")
         elif any(item.name == name and item != p for item in people):
@@ -91,7 +115,9 @@ def participants():
 
 def expenses():
     e, key = editor("expenses", "지출")
-    title = st.text_input("지출명", value=e.title if e else "", key=key + "_title")
+    if e is None:
+        st.caption("한 번의 결제마다 결제자와 비용을 나눌 사람을 선택하세요.")
+    title = st.text_input("지출명", placeholder="예: 첫날 저녁 식비", value=e.title if e else "", key=key + "_title")
     payer = pick("결제자", e.payer_id if e else ids[0], key + "_payer")
     amount = st.number_input("지출 금액(원)", min_value=0, value=e.amount if e else 0, key=key + "_amount")
     selected = st.multiselect("부담자", ids, default=[s.participant_id for s in e.shares] if e else [],
@@ -110,7 +136,7 @@ def expenses():
             shares.append(Share(pid, individual))
     entry = Expense(e.id if e else uuid4().hex, title.strip(), payer, amount,
                     "equal" if mode == "균등 분담" else "exact", tuple(shares))
-    submitted = st.button("지출 저장")
+    submitted = st.button("지출 저장", type="primary")
     if e and st.button("지출 삭제"):
         save("expenses", e, remove=True)
     try:
@@ -130,10 +156,12 @@ def expenses():
 
 def transfers():
     t, key = editor("transfers", "기존 송금")
+    if t is None:
+        st.caption("이미 주고받은 돈이 있을 때 기록하세요. 없으면 바로 정산 결과로 이동하세요.")
     sender = pick("송금자", t.sender_id if t else ids[0], key + "_sender")
     receiver = pick("수령자", t.receiver_id if t else ids[1], key + "_receiver")
     amount = st.number_input("이미 보낸 금액(원)", min_value=0, value=t.amount if t else 0, key=key + "_amount")
-    if st.button("기존 송금 저장"):
+    if st.button("기존 송금 저장", type="primary"):
         save("transfers", Transfer(t.id if t else uuid4().hex, sender, receiver, amount))
     if t and st.button("기존 송금 삭제"):
         save("transfers", t, remove=True)
@@ -175,14 +203,24 @@ def results():
         st.table(details)
     else:
         st.caption("이 참여자와 관련된 지출이 없습니다.")
-    st.subheader("알고리즘 비교")
+    with st.expander("송금 횟수와 알고리즘 비교"):
+        comparison(result)
+
+
+def comparison(result):
     st.table([{"방식": "그리디", "송금 건수": len(result.greedy_plan), "시간(ms)": f"{result.greedy_ms:.3f}"},
               {"방식": "백트래킹", "송금 건수": len(result.plan), "시간(ms)": f"{result.search_ms:.3f}"}])
     st.write(f"{len(result.greedy_plan) - len(result.plan)}건 절감 · 방문 상태 {result.visited}개 · "
              f"하한 가지치기 {result.bound_cuts}개 · 중복 상태 생략 {result.duplicate_cuts}개")
-    with st.expander("그리디 송금 목록"):
-        payments(result.greedy_plan)
+    st.write("그리디 송금 목록")
+    payments(result.greedy_plan)
 
+
+if not people:
+    st.caption("참여자 등록 → 지출 입력 → 정산 결과 확인")
+else:
+    st.caption(f"참여자 {len(people)}명　·　지출 {len(state.expenses)}건　·　"
+               f"총 결제액 {won(sum(item.amount for item in state.expenses.values()))}")
 
 person_tab, expense_tab, transfer_tab, result_tab = st.tabs(["참여자", "지출", "기존 송금", "정산 결과"])
 with person_tab:
