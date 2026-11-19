@@ -1,3 +1,10 @@
+import codecs
+import csv
+from io import StringIO
+from unittest.mock import patch
+
+import streamlit as st
+
 import unittest
 from pathlib import Path
 
@@ -94,3 +101,37 @@ class SettlementScreenTests(unittest.TestCase):
         self.app.button(key="expenses_cancel").click().run()
         self.assertEqual(self.widget("text_input", "지출명").value, "")
         self.assertEqual(self.app.session_state["expenses"][expense_id].title, "식비")
+
+    def test_download_files_follow_current_result(self):
+        self.register(['A, "팀"', 'B'])
+        self.expense("교통비", 'A, "팀"', 101, ["B"])
+        with patch.object(st, "download_button", wraps=st.download_button) as download:
+            self.click("정산 계산")
+            def exported_rows():
+                rows = {}
+                for call in download.call_args_list:
+                    data = call.kwargs["data"]
+                    self.assertTrue(data.startswith(codecs.BOM_UTF8))
+                    rows[call.kwargs["file_name"]] = list(csv.reader(StringIO(data.decode("utf-8-sig"))))
+                return rows
+
+            files = exported_rows()
+            self.assertEqual(files["settlement.csv"], [
+                ["순번", "송금자", "수령자", "금액", "결과 상태"],
+                ["1", "B", 'A, "팀"', "101", "최소 송금 횟수 확정"],
+            ])
+            self.assertEqual(files["balances.csv"], [
+                ["참여자", "총결제액", "총부담액", "이미 보낸 금액", "이미 받은 금액", "정산 잔액"],
+                ['A, "팀"', "101", "0", "0", "0", "101"],
+                ["B", "0", "101", "0", "0", "-101"],
+            ])
+            self.widget("selectbox", "송금자").select(self.ids["B"])
+            self.widget("selectbox", "수령자").select(self.ids['A, "팀"'])
+            self.widget("number_input", "이미 보낸 금액(원)").set_value(101)
+            download.reset_mock()
+            self.click("기존 송금 저장")
+            self.assertFalse(self.app.get("download_button"))
+            self.click("정산 계산")
+            updated = exported_rows()
+            self.assertEqual(updated["settlement.csv"], files["settlement.csv"][:1])
+            self.assertEqual([r[-1] for r in updated["balances.csv"][1:]], ["0", "0"])

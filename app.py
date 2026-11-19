@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from settlement.backtracking import backtracking_settlement
 from settlement.balances import calculate_balances, split_expense
+from settlement.csv_io import balances_csv, settlement_csv
 from settlement.models import Expense, Participant, Share, Transfer
 
 
@@ -187,11 +188,15 @@ def results():
               "settled": "추가 송금 없음"}
     st.subheader(f"{labels[result.status]} · {len(result.plan)}건")
     payments(result.plan)
+    st.download_button("송금 목록 CSV 다운로드", data=settlement_csv(result.plan, names, labels[result.status]),
+                       file_name="settlement.csv", mime="text/csv")
     st.subheader("개인별 정산 근거")
     st.caption("정산 잔액 = 결제액 − 부담액 + 이미 보낸 금액 − 이미 받은 금액. 양수는 받을 금액, 음수는 보낼 금액입니다.")
     st.table([{"참여자": names[pid], "결제액": won(r.paid), "부담액": won(r.owed),
                "이미 보냄": won(r.sent), "이미 받음": won(r.received), "정산 잔액": won(r.net)}
               for pid, r in rows.items()])
+    st.download_button("개인별 잔액 CSV 다운로드", data=balances_csv(rows, names),
+                       file_name="balances.csv", mime="text/csv")
     pid = st.selectbox("지출별 계산 근거를 볼 참여자", ids, format_func=names.get)
     details = []
     for e in state.expenses.values():
