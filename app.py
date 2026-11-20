@@ -47,8 +47,7 @@ if state.get("confirm_reset"):
     cancel.button("취소", on_click=state.pop, args=("confirm_reset",))
     st.stop()
 
-if people:
-    st.button("새 정산 시작", on_click=state.update, args=({"confirm_reset": True},))
+st.button("새 정산 시작", on_click=state.update, args=({"confirm_reset": True},))
 
 
 def won(amount):
