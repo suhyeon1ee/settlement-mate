@@ -14,13 +14,17 @@ st.markdown("""
 <style>
 .stApp {background:linear-gradient(125deg,#fcfdff,#eff4fd);color:#152542;font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif}
 .stApp :is(h1,h2,h3,p,label,input,button) {font-family:inherit}
-.stApp h1 {font-size:clamp(1.85rem,3vw,2.65rem);letter-spacing:-.055em;line-height:1.25}
+.stApp h1 {font-size:clamp(2rem,3.4vw,2.9rem);font-weight:800;word-break:keep-all;letter-spacing:-.055em;line-height:1.25}
 [data-testid="stMainBlockContainer"] {max-width:1160px;padding-top:3.6rem}
-.st-key-brand {font-size:1.55rem;font-weight:750;letter-spacing:-.055em}
+.st-key-brand {font-size:clamp(1.6rem,2.4vw,1.8rem);font-weight:800;letter-spacing:-.055em}
 .st-key-brand span {display:inline-grid;place-items:center;border-radius:8px;background:#2452e9;color:white;width:1.35em;height:1.35em}
 .stApp button[kind*="primary" i] {background:#2452e9;border-color:#2452e9;color:white}
 .stApp [role="tab"][aria-selected="true"] {color:#2452e9}
-.stApp [data-baseweb="tab-highlight"] {background:#2452e9}
+.stApp [role="tab"][aria-selected="true"] p {font-weight:700}
+.stApp [data-baseweb="tab-highlight"], .stApp [data-testid="stTabs"] [role="tablist"] [data-baseweb="tab-highlight"] {background-color:#2452e9 !important}
+.st-key-ticket h3 {font-size:clamp(1.35rem,2vw,1.75rem);font-weight:750;letter-spacing:-.035em;color:#152542}
+.stApp .participant-guide {color:inherit;opacity:.86;font-size:1.08rem;font-weight:550;line-height:1.6;word-break:keep-all}
+.participant-guide strong {color:#2452e9;font-weight:750}
 .stApp [data-testid="stForm"] {padding:0;border:none}
 .st-key-ticket {position:relative;background:white;color:#152542;border-radius:14px 14px 0 0;padding:1.3rem;box-shadow:0 8px 28px #1e427511}
 .st-key-ticket:after {content:"";position:absolute;top:100%;inset-inline:0;height:8px;background:linear-gradient(135deg,white 25%,transparent 25%) -8px 0/16px 16px,linear-gradient(225deg,white 25%,transparent 25%) -8px 0/16px 16px}
@@ -125,8 +129,9 @@ def save_person(name, person=None):
 
 
 def participants():
-    st.caption("두 명 이상 등록하면 지출을 입력할 수 있어요." if len(people) < 2
-               else "등록을 마쳤다면 ‘지출’ 탭에서 결제 내역을 입력하세요.")
+    guide = ("두 명 이상 등록하면 지출을 입력할 수 있어요." if len(people) < 2
+             else "등록을 마쳤다면 <strong>‘지출’</strong> 탭에서 결제 내역을 입력하세요.")
+    st.markdown(f'<p class="participant-guide">{guide}</p>', unsafe_allow_html=True)
     with st.form(f"add_person_{state.people_revision}"):
         field, action = st.columns([3, 1], vertical_alignment="bottom")
         name = field.text_input("참여자 이름", placeholder="이름 입력", label_visibility="collapsed")
