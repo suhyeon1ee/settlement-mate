@@ -26,7 +26,7 @@ class SettlementScreenTests(unittest.TestCase):
     def register(self, names):
         for name in names:
             self.widget("text_input", "참여자 이름").input(name)
-            self.click("참여자 저장")
+            self.click("추가")
         self.ids = {p.name: p.id for p in self.app.session_state["people"].values()}
 
     def test_new_settlement(self):
@@ -91,15 +91,20 @@ class SettlementScreenTests(unittest.TestCase):
         self.register("AB")
         self.expense("식비", "A", 101, "AB")
         self.click("정산 계산")
+        self.click("편집")
+        self.app.button(key=f"edit_people_{self.ids['A']}").click().run()
+        self.widget("text_input", "수정할 이름").input("임시")
+        self.click("취소")
+        self.assertEqual(self.app.session_state["people"][self.ids["A"]].name, "A")
         self.app.button(key=f"edit_people_{self.ids['A']}").click().run()
         self.click("참여자 삭제")
         self.assertTrue(self.app.error)
         self.assertIsNotNone(self.app.session_state["result"])
-        self.widget("text_input", "참여자 이름").input(" B ")
-        self.click("참여자 저장")
+        self.widget("text_input", "수정할 이름").input(" B ")
+        self.click("저장")
         self.assertTrue(self.app.error)
-        self.widget("text_input", "참여자 이름").input("C")
-        self.click("참여자 저장")
+        self.widget("text_input", "수정할 이름").input("C")
+        self.click("저장")
         self.assertIsNone(self.app.session_state["result"])
         self.assertEqual(self.app.session_state["people"][self.ids["A"]].name, "C")
         self.click("정산 계산")
