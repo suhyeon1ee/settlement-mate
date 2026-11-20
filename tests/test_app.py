@@ -29,6 +29,21 @@ class SettlementScreenTests(unittest.TestCase):
             self.click("참여자 저장")
         self.ids = {p.name: p.id for p in self.app.session_state["people"].values()}
 
+    def test_new_settlement(self):
+        self.register(["A", "B"])
+        self.expense("식비", "A", 100, ["A", "B"])
+        self.click("정산 계산")
+        self.click("새 정산 시작")
+        self.click("취소")
+        self.assertIsNotNone(self.app.session_state["result"])
+        self.assertEqual(len(self.app.session_state["expenses"]), 1)
+        self.click("새 정산 시작")
+        self.click("내역 지우고 새로 시작")
+        for group in ("people", "expenses", "transfers"):
+            self.assertEqual(self.app.session_state[group], {})
+        self.assertIsNone(self.app.session_state["result"])
+        self.register(["A"])
+
     def expense(self, title, payer, amount, members, amounts=None):
         self.widget("text_input", "지출명").input(title)
         self.widget("selectbox", "결제자").select(self.ids[payer])

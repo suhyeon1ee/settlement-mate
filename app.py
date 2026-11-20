@@ -35,6 +35,22 @@ names = {p.id: p.name for p in people}
 ids = list(names)
 
 
+def reset_settlement():
+    for key in list(state):
+        del state[key]
+
+
+if state.get("confirm_reset"):
+    st.warning("새 정산을 시작하면 현재 참여자, 지출, 기존 송금, 계산 결과가 모두 지워져요. 계속할까요?")
+    confirm, cancel = st.columns(2)
+    confirm.button("내역 지우고 새로 시작", on_click=reset_settlement)
+    cancel.button("취소", on_click=state.pop, args=("confirm_reset",))
+    st.stop()
+
+if people:
+    st.button("새 정산 시작", on_click=state.update, args=({"confirm_reset": True},))
+
+
 def won(amount):
     return f"{amount:,}원"
 
