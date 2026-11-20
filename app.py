@@ -12,30 +12,26 @@ from settlement.models import Expense, Participant, Share, Transfer
 st.set_page_config(page_title="정산메이트 · 공동 경비 정산", page_icon="🧾", layout="wide")
 st.markdown("""
 <style>
-.stApp {background:#faf7ef;color:#182643}
-[data-testid="stMainBlockContainer"] {max-width:1080px;padding-top:3.8rem}
-.st-key-brand {font-size:1.6rem;font-weight:800;letter-spacing:-.06em;color:#17284a}
-.st-key-brand span {color:#224cc6}
-.stApp button[kind="primary"] {background:#244aca;border-color:#244aca;color:white}
-.stApp [role="tab"][aria-selected="true"] {color:#203fba;font-weight:700}
-.stApp [data-baseweb="tab-highlight"] {background:#244aca}
-.ticket {position:relative;margin:.6rem .6rem 1.4rem;padding:1.5rem 1.6rem;background:#fff;
-color:#17284a;box-shadow:0 9px 26px #493b2514;overflow-wrap:anywhere}
-.ticket:after {content:"";position:absolute;top:100%;left:0;right:0;height:9px;
-background:linear-gradient(135deg,white 25%,transparent 25%) -7px 0/14px 14px,
-linear-gradient(225deg,white 25%,transparent 25%) -7px 0/14px 14px}
-.ticket header,.ticket footer {position:static;display:flex;align-items:center;justify-content:space-between;
-background:white;color:#17284a;gap:1rem}
-.ticket header {padding-bottom:.8rem;border-bottom:1px dashed #afa997}
-.ticket ul {list-style:none;margin:0;padding:.6rem 0}
-.ticket li {padding:.35rem 0;margin:0;border-bottom:1px dotted #e4dfd4}
-.ticket footer {padding-top:.8rem;border-top:1px dashed #afa997}
-.ticket footer strong {color:#244aca;font-size:1.4rem}
-@media(prefers-color-scheme:dark){.stApp {background:var(--background-color);color:var(--text-color)}.st-key-brand {color:inherit}}
+.stApp {background:linear-gradient(125deg,#fcfdff,#eff4fd);color:#152542;font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+.stApp :is(h1,h2,h3,p,label,input,button) {font-family:inherit}
+.stApp h1 {font-size:clamp(1.85rem,3vw,2.65rem);letter-spacing:-.055em;line-height:1.25}
+[data-testid="stMainBlockContainer"] {max-width:1160px;padding-top:3.6rem}
+.st-key-brand {font-size:1.55rem;font-weight:750;letter-spacing:-.055em}
+.st-key-brand span {display:inline-grid;place-items:center;border-radius:8px;background:#2452e9;color:white;width:1.35em;height:1.35em}
+.stApp button[kind*="primary" i] {background:#2452e9;border-color:#2452e9;color:white}
+.stApp [role="tab"][aria-selected="true"] {color:#2452e9}
+.stApp [data-baseweb="tab-highlight"] {background:#2452e9}
+.stApp [data-testid="stForm"] {padding:0;border:none}
+.st-key-ticket {position:relative;background:white;color:#152542;border-radius:14px 14px 0 0;padding:1.3rem;box-shadow:0 8px 28px #1e427511}
+.st-key-ticket:after {content:"";position:absolute;top:100%;inset-inline:0;height:8px;background:linear-gradient(135deg,white 25%,transparent 25%) -8px 0/16px 16px,linear-gradient(225deg,white 25%,transparent 25%) -8px 0/16px 16px}
+.member {padding:.45rem 0;border-bottom:1px solid #e3e8ef;overflow-wrap:anywhere}
+.total {display:flex;justify-content:space-between;align-items:center;border-top:1px dashed #aab6ca;padding-top:.9rem}
+.total strong {color:#2452e9;font-size:1.5rem;font-variant-numeric:tabular-nums}
+@media(prefers-color-scheme:dark){.stApp {background:var(--background-color);color:var(--text-color)}.st-key-ticket {color:#152542}}
 </style>
 """, unsafe_allow_html=True)
 brand, restart = st.columns([4, 1])
-brand.markdown('<div class="st-key-brand"><span>✈</span> 정산메이트</div>', unsafe_allow_html=True)
+brand.markdown('<div class="st-key-brand"><span aria-hidden="true">≡</span> 정산메이트</div>', unsafe_allow_html=True)
 state = st.session_state
 for group in ("people", "expenses", "transfers"):
     state.setdefault(group, {})
@@ -112,27 +108,38 @@ def pick(label, default, key):
     return st.selectbox(label, ids, index=ids.index(default), format_func=names.get, key=key)
 
 
+def save_person(name, person=None):
+    name = name.strip()
+    if not name:
+        st.error("참여자 이름을 입력하세요.")
+        return
+    if any(other.name == name and other != person for other in people):
+        st.error("이미 등록된 이름이에요. 구분할 수 있는 이름으로 입력해 주세요.")
+        return
+    if person is None:
+        order = max((p.registration_order for p in people), default=0) + 1
+        person = Participant(uuid4().hex, name, order)
+    save("people", Participant(person.id, name, person.registration_order))
+
+
 def participants():
-    p, key = editor("people", "참여자")
-    if p is None:
-        if not people:
-            st.write("함께 경비를 나눈 사람의 이름을 한 명씩 등록하세요.")
-        elif len(people) == 1:
-            st.write("한 명 더 등록하면 지출을 입력할 수 있어요.")
-        else:
-            st.caption("등록을 마쳤다면 ‘지출’ 탭에서 첫 결제 내역을 입력하세요." if not state.expenses
-                       else "새로 참여한 사람이 있으면 추가하세요.")
-    field, action = st.columns([3, 1], vertical_alignment="bottom")
-    name = field.text_input("참여자 이름", placeholder="예: 서윤", value=p.name if p else "", key=key + "_name").strip()
-    if action.button("참여자 저장", type="primary"):
-        if not name:
-            st.error("참여자 이름을 입력하세요.")
-        elif any(item.name == name and item != p for item in people):
-            st.error("이미 등록된 이름이에요. 구분할 수 있는 이름으로 입력해 주세요.")
-        else:
-            order = p.registration_order if p else max((v.registration_order for v in people), default=0) + 1
-            save("people", Participant(p.id if p else uuid4().hex, name, order))
-    if p and st.button("참여자 삭제"):
+    st.caption("두 명 이상 등록하면 지출을 입력할 수 있어요." if len(people) < 2
+               else "등록을 마쳤다면 ‘지출’ 탭에서 결제 내역을 입력하세요.")
+    with st.form(f"add_person_{state.people_revision}"):
+        field, action = st.columns([3, 1], vertical_alignment="bottom")
+        name = field.text_input("참여자 이름", placeholder="이름 입력", label_visibility="collapsed")
+        if action.form_submit_button("추가", type="primary"):
+            save_person(name)
+
+
+def edit_person(p):
+    name = st.text_input("수정할 이름", value=p.name, key=f"rename_{p.id}_{state.people_revision}",
+                         label_visibility="collapsed")
+    save_col, cancel_col, delete_col = st.columns(3)
+    if save_col.button("저장"):
+        save_person(name, p)
+    cancel_col.button("취소", on_click=select_record, args=("people", None))
+    if delete_col.button("참여자 삭제"):
         used = any(e.payer_id == p.id or any(s.participant_id == p.id for s in e.shares)
                    for e in state.expenses.values())
         if used or any(p.id in (t.sender_id, t.receiver_id) for t in state.transfers.values()):
@@ -248,16 +255,33 @@ def comparison(result):
     payments(result.greedy_plan)
 
 
+def toggle_receipt():
+    state.receipt_edit = not state.get("receipt_edit", False)
+    select_record("people", None)
+
+
 def receipt():
-    members = "".join(f"<li>{escape(person.name)}</li>" for person in people)
-    total = sum(expense.amount for expense in state.expenses.values())
-    st.markdown(
-        '<section class="ticket" aria-label="모임 영수증">'
-        f'<header><strong>참여자 목록</strong><small>{len(people)}명</small></header>'
-        f'<ul>{members or "<li>등록된 참여자가 없어요.</li>"}</ul>'
-        f'<footer>총지출<strong>{won(total)}</strong></footer></section>',
-        unsafe_allow_html=True,
-    )
+    with st.container(key="ticket"):
+        title, mode = st.columns([2, 1])
+        title.subheader(f"참여자 {len(people)}명")
+        editing = state.get("receipt_edit", False)
+        if people:
+            mode.button("편집 완료" if editing else "편집", on_click=toggle_receipt)
+        else:
+            st.caption("등록한 이름이 여기에 표시돼요.")
+        for p in people:
+            if editing and state.get("people_editing") == p.id:
+                edit_person(p)
+            else:
+                row = st.container()
+                if editing:
+                    row, pen = st.columns([4, 1])
+                    pen.button("✎", key=f"edit_people_{p.id}", help=f"{p.name} 수정",
+                               on_click=select_record, args=("people", p.id))
+                row.markdown(f'<div class="member">{escape(p.name)}</div>', unsafe_allow_html=True)
+        total = sum(e.amount for e in state.expenses.values())
+        st.markdown(f'<div class="total">총지출<strong>{won(total)}</strong></div>',
+                    unsafe_allow_html=True)
 
 
 person_tab, expense_tab, transfer_tab, result_tab = st.tabs(["참여자", "지출", "기존 송금", "정산 결과"])
@@ -266,9 +290,6 @@ with person_tab:
     with form:
         st.title("누구와 함께 정산할까요?")
         participants()
-        if people:
-            with st.expander("참여자 관리"):
-                saved_records("people", "등록된 참여자", lambda p: f"{p.registration_order}. {p.name}")
     with preview:
         receipt()
 for tab, render in ((expense_tab, expenses), (transfer_tab, transfers), (result_tab, results)):
