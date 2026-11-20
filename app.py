@@ -28,10 +28,12 @@ st.markdown("""
 .total {display:flex;justify-content:space-between;align-items:center;border-top:1px dashed #aab6ca;padding-top:.9rem}
 .total strong {color:#2452e9;font-size:1.5rem;font-variant-numeric:tabular-nums}
 @media(prefers-color-scheme:dark){.stApp {background:var(--background-color);color:var(--text-color)}.st-key-ticket {color:#152542}}
+.st-key-new_settlement button {min-height:3.15rem;padding:.65rem 1.15rem;border-radius:.75rem;background:#2452e9;color:white}
+.st-key-new_settlement button p {font-size:1.08rem;font-weight:700}
 </style>
 """, unsafe_allow_html=True)
 brand, restart = st.columns([4, 1])
-brand.markdown('<div class="st-key-brand"><span aria-hidden="true">≡</span> 정산메이트</div>', unsafe_allow_html=True)
+brand.markdown('<div class="st-key-brand"><span aria-hidden="true">✈︎</span> 정산메이트</div>', unsafe_allow_html=True)
 state = st.session_state
 for group in ("people", "expenses", "transfers"):
     state.setdefault(group, {})
@@ -54,7 +56,7 @@ if state.get("confirm_reset"):
     cancel.button("취소", on_click=state.pop, args=("confirm_reset",))
     st.stop()
 
-restart.button("새 정산 시작", on_click=state.update, args=({"confirm_reset": True},))
+restart.button("새 정산 시작", key="new_settlement", type="primary", use_container_width=True, on_click=state.update, args=({"confirm_reset": True},))
 
 
 def won(amount):
@@ -140,12 +142,16 @@ def edit_person(p):
         save_person(name, p)
     cancel_col.button("취소", on_click=select_record, args=("people", None))
     if delete_col.button("참여자 삭제"):
-        used = any(e.payer_id == p.id or any(s.participant_id == p.id for s in e.shares)
-                   for e in state.expenses.values())
-        if used or any(p.id in (t.sender_id, t.receiver_id) for t in state.transfers.values()):
-            st.error("이 참여자를 참조하는 지출이나 기존 송금을 먼저 수정하거나 삭제하세요.")
-        else:
-            save("people", p, remove=True)
+        delete_person(p)
+
+
+def delete_person(p):
+    used = any(e.payer_id == p.id or any(s.participant_id == p.id for s in e.shares)
+               for e in state.expenses.values())
+    if used or any(p.id in (t.sender_id, t.receiver_id) for t in state.transfers.values()):
+        st.error("이 참여자를 참조하는 지출이나 기존 송금을 먼저 수정하거나 삭제하세요.")
+    else:
+        save("people", p, remove=True)
 
 
 def expenses():
@@ -275,7 +281,9 @@ def receipt():
             else:
                 row = st.container()
                 if editing:
-                    row, pen = st.columns([4, 1])
+                    row, pen, remove = st.columns([3, 1, 1.4])
+                    if remove.button("삭제", key=f"delete_people_{p.id}", help=f"{p.name} 삭제"):
+                        delete_person(p)
                     pen.button("✎", key=f"edit_people_{p.id}", help=f"{p.name} 수정",
                                on_click=select_record, args=("people", p.id))
                 row.markdown(f'<div class="member">{escape(p.name)}</div>', unsafe_allow_html=True)
