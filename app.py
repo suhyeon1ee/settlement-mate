@@ -34,6 +34,11 @@ st.markdown("""
 @media(prefers-color-scheme:dark){.stApp {background:var(--background-color);color:var(--text-color)}.st-key-ticket {color:#152542}}
 .st-key-new_settlement button {min-height:3.15rem;padding:.65rem 1.15rem;border-radius:.75rem;background:#2452e9;color:white}
 .st-key-new_settlement button p {font-size:1.08rem;font-weight:700}
+.st-key-expense_form,.st-key-expense_preview {background:var(--secondary-background-color,#fff);border-radius:16px}
+.st-key-expense_preview {border-bottom:3px dashed #aab6ca}
+.share-row {display:flex;justify-content:space-between;gap:1rem;padding:.8rem 0;border-bottom:1px solid #dbe2ef;overflow-wrap:anywhere}
+.share-row b {white-space:nowrap;font-variant-numeric:tabular-nums}
+.st-key-new_settlement button[kind] {background:white;color:#2452e9;border:2px solid #2452e9}
 </style>
 """, unsafe_allow_html=True)
 brand, restart = st.columns([4, 1])
@@ -160,42 +165,57 @@ def delete_person(p):
 
 
 def expenses():
-    e, key = editor("expenses", "지출")
-    if e is None:
-        st.caption("한 번의 결제마다 결제자와 비용을 나눌 사람을 선택하세요.")
-    title = st.text_input("지출명", placeholder="예: 첫날 저녁 식비", value=e.title if e else "", key=key + "_title")
-    payer = pick("결제자", e.payer_id if e else ids[0], key + "_payer")
-    amount = st.number_input("지출 금액(원)", min_value=0, value=e.amount if e else 0, key=key + "_amount")
-    selected = st.multiselect("부담자", ids, default=[s.participant_id for s in e.shares] if e else [],
-                              format_func=names.get, key=key + "_members")
-    mode = st.radio("분담 방식", ["균등 분담", "직접 지정"],
-                    index=int(bool(e and e.split_type == "exact")), horizontal=True, key=key + "_mode")
-    shares = []
-    if mode == "균등 분담":
-        st.caption("나머지 금액은 선택한 부담자의 등록 순서대로 1원씩 배분합니다.")
-        shares = [Share(pid) for pid in selected]
-    else:
-        defaults = {s.participant_id: s.amount for s in e.shares} if e else {}
-        for pid in selected:
-            individual = st.number_input(f"{names[pid]} 부담액(원)", min_value=0,
-                                         value=defaults.get(pid) or 0, key=key + "_" + pid)
-            shares.append(Share(pid, individual))
-    entry = Expense(e.id if e else uuid4().hex, title.strip(), payer, amount,
-                    "equal" if mode == "균등 분담" else "exact", tuple(shares))
-    submitted = st.button("지출 저장", type="primary")
-    if e and st.button("지출 삭제"):
-        save("expenses", e, remove=True)
-    try:
-        amounts = split_expense(entry, people)
-    except ValueError as error:
-        if submitted or (title and selected and amount):
-            st.error(str(error))
-        return
-    st.table([{"부담자": names[pid], "예상 부담액": won(n)} for pid, n in amounts.items()])
-    if entry.split_type == "equal" and amount % len(amounts):
-        extra = [names[pid] for pid, share in amounts.items() if share > amount // len(amounts)]
-        st.caption("나머지 1원씩 배정: " + ", ".join(extra))
-    st.caption(f"분담 합계 {won(sum(amounts.values()))}")
+    st.title("지출 입력")
+    st.write("결제 내역을 입력하고 함께 나눌 사람을 선택하세요.")
+    form, preview = st.columns([1.7, 1])
+    with form.container(border=True, key="expense_form"):
+        e, key = editor("expenses", "지출")
+        st.subheader("결제 정보")
+        title = st.text_input("지출명", value=e.title if e else "", placeholder="예: 첫날 저녁 식비", key=key + "_title")
+        payer_col, amount_col = st.columns(2)
+        with payer_col:
+            payer = pick("결제자", e.payer_id if e else ids[0], key + "_payer")
+        amount = amount_col.number_input("지출 금액(원)", min_value=0, value=e.amount if e else 0, key=key + "_amount")
+        st.divider()
+        st.subheader("분담 설정")
+        selected = st.pills("함께 나눌 사람", ids, selection_mode="multi", format_func=names.get,
+                            default=[s.participant_id for s in e.shares] if e else [], key=key + "_members")
+        mode = st.segmented_control("분담 방식", ["균등 분담", "직접 지정"],
+                                    default="직접 지정" if e and e.split_type == "exact" else "균등 분담",
+                                    key=key + "_mode")
+        shares = []
+        if mode != "직접 지정":
+            st.caption("나머지 금액은 선택한 부담자의 등록 순서대로 1원씩 배분합니다.")
+            shares = [Share(pid) for pid in selected]
+        else:
+            defaults = {s.participant_id: s.amount for s in e.shares} if e else {}
+            for pid in selected:
+                individual = st.number_input(f"{names[pid]} 부담액(원)", min_value=0,
+                                             value=defaults.get(pid) or 0, key=key + "_" + pid)
+                shares.append(Share(pid, individual))
+        entry = Expense(e.id if e else uuid4().hex, title.strip(), payer, amount,
+                        "exact" if mode == "직접 지정" else "equal", tuple(shares))
+        submitted = st.button("지출 저장", type="primary")
+        if e and st.button("지출 삭제"):
+            save("expenses", e, remove=True)
+    with preview.container(border=True, key="expense_preview"):
+        st.subheader("분담 미리보기")
+        st.metric("총 지출 금액", won(amount))
+        st.divider()
+        if mode is None:
+            st.info("분담 방식을 선택하세요.")
+            return
+        try:
+            amounts = split_expense(entry, people)
+        except ValueError as error:
+            if submitted or (title and selected and amount):
+                st.error(str(error))
+            else:
+                st.caption("지출명과 금액을 입력하고 함께 나눌 사람을 선택하세요.")
+            return
+        for pid, share in amounts.items():
+            st.markdown(f'<div class="share-row"><span>{escape(names[pid])}</span><b>{won(share)}</b></div>',
+                        unsafe_allow_html=True)
     if submitted:
         save("expenses", entry)
 
