@@ -15,7 +15,7 @@ st.markdown("""
 .stApp {background:linear-gradient(125deg,#fcfdff,#eff4fd);color:#152542;font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif}
 .stApp :is(h1,h2,h3,p,label,input,button) {font-family:inherit}
 .stApp h1 {font-size:clamp(2rem,3.4vw,2.9rem);font-weight:800;word-break:keep-all;letter-spacing:-.055em;line-height:1.25}
-[data-testid="stMainBlockContainer"] {max-width:1160px;padding-top:3.6rem}
+[data-testid="stMainBlockContainer"] {width:100%;max-width:1600px;padding:3.6rem clamp(1rem,4vw,4rem) 3rem}
 .st-key-brand {font-size:clamp(1.6rem,2.4vw,1.8rem);font-weight:800;letter-spacing:-.055em}
 .st-key-brand span {display:inline-grid;place-items:center;border-radius:8px;background:#2452e9;color:white;width:1.35em;height:1.35em}
 .stApp button[kind*="primary" i] {background:#2452e9;border-color:#2452e9;color:white}
@@ -34,8 +34,8 @@ st.markdown("""
 @media(prefers-color-scheme:dark){.stApp {background:var(--background-color);color:var(--text-color)}.st-key-ticket {color:#152542}}
 .st-key-new_settlement button {min-height:3.15rem;padding:.65rem 1.15rem;border-radius:.75rem;background:#2452e9;color:white}
 .st-key-new_settlement button p {font-size:1.08rem;font-weight:700}
-.st-key-expense_form,.st-key-expense_preview,.st-key-expense_history {background:#fff;color:#152542;border:1px solid #ced8e7;border-radius:14px;padding:1.25rem 1.4rem;gap:1rem}
-.st-key-expense_form h3,.st-key-expense_preview h3,.st-key-expense_history h3 {font-size:1.22rem;line-height:1.45;padding:0 0 .45rem;margin:0}
+.st-key-transfer_form,.st-key-transfer_history,.st-key-expense_form,.st-key-expense_preview,.st-key-expense_history {background:#fff;color:#152542;border:1px solid #ced8e7;border-radius:14px;padding:1.25rem 1.4rem;gap:1rem}
+.st-key-transfer_form h3,.st-key-transfer_history h3,.st-key-expense_form h3,.st-key-expense_preview h3,.st-key-expense_history h3 {font-size:1.22rem;line-height:1.45;padding:0 0 .45rem;margin:0}
 .stApp .expense-heading {font-size:clamp(1.65rem,2.6vw,2rem);padding:0;margin:0 0 .25rem}
 .expense-intro {color:#53647b;margin:0 0 .9rem;line-height:1.55}
 .expense-rule {border-top:1px solid #dae2ed;margin:.55rem 0 .7rem}
@@ -50,8 +50,12 @@ st.markdown("""
 .share-row b,.saved-expense b {white-space:nowrap;font-variant-numeric:tabular-nums}
 .saved-expense small {display:block;margin-top:.25rem;line-height:1.5;color:#52647e}
 .st-key-expense_history {margin-top:.5rem}
-@media(prefers-color-scheme:dark){.st-key-expense_form,.st-key-expense_history,.st-key-expense_preview {background:var(--background-color);color:var(--text-color)}.expense-intro,.saved-expense small {color:inherit}}
+@media(prefers-color-scheme:dark){.st-key-transfer_form,.st-key-transfer_history,.st-key-expense_form,.st-key-expense_history,.st-key-expense_preview {background:var(--background-color);color:var(--text-color)}.expense-intro,.saved-expense small {color:inherit}}
 .st-key-new_settlement button[kind] {background:white;color:#2452e9;border:2px solid #2452e9}
+.st-key-transfer_history .expense-total {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;padding:1rem 1.2rem}
+.st-key-transfer_history .expense-total strong {font-size:clamp(1.55rem,2.2vw,2.1rem)}
+.st-key-transfer_history .share-row {padding:.85rem 0}
+.st-key-transfer_form,.st-key-transfer_history {padding:clamp(1rem,2vw,1.8rem)}
 </style>
 """, unsafe_allow_html=True)
 brand, restart = st.columns([4, 1])
@@ -116,16 +120,6 @@ def editor(group, label):
         st.subheader(f"{label} 수정")
         st.button("수정 취소", key=group + "_cancel", on_click=select_record, args=(group, None))
     return state[group].get(selected), f"{group}_{state[group + '_revision']}_{selected}"
-
-
-def saved_records(group, title, describe):
-    if state[group]:
-        st.subheader(title)
-    for record in state[group].values():
-        summary, action = st.columns([4, 1])
-        summary.text(describe(record))
-        action.button("수정", key=f"edit_{group}_{record.id}", on_click=select_record,
-                      args=(group, record.id))
 
 
 def pick(label, default, key):
@@ -252,16 +246,38 @@ def expense_history():
 
 
 def transfers():
-    t, key = editor("transfers", "기존 송금")
-    if t is None:
-        st.caption("이미 주고받은 돈이 있을 때 기록하세요. 없으면 바로 정산 결과로 이동하세요.")
-    sender = pick("송금자", t.sender_id if t else ids[0], key + "_sender")
-    receiver = pick("수령자", t.receiver_id if t else ids[1], key + "_receiver")
-    amount = st.number_input("이미 보낸 금액(원)", min_value=0, value=t.amount if t else 0, key=key + "_amount")
-    if st.button("기존 송금 저장", type="primary"):
-        save("transfers", Transfer(t.id if t else uuid4().hex, sender, receiver, amount))
-    if t and st.button("기존 송금 삭제"):
-        save("transfers", t, remove=True)
+    st.markdown('<h1 class="expense-heading">기존 송금</h1>'
+                '<p class="expense-intro">이미 주고받은 금액을 기록하면 남은 정산액에 반영돼요.</p>',
+                unsafe_allow_html=True)
+    form, history = st.columns([0.92, 1.08])
+    with form.container(border=True, key="transfer_form"):
+        st.subheader("송금 입력")
+        t, key = editor("transfers", "기존 송금")
+        left, right = st.columns(2)
+        with left:
+            sender = pick("송금자", t.sender_id if t else ids[0], key + "_sender")
+        with right:
+            receiver = pick("수령자", t.receiver_id if t else ids[1], key + "_receiver")
+        amount = st.number_input("이미 보낸 금액(원)", min_value=0, value=t.amount if t else 0, key=key + "_amount")
+        if st.button("기존 송금 저장", type="primary", use_container_width=True):
+            save("transfers", Transfer(t.id if t else uuid4().hex, sender, receiver, amount))
+        if t and st.button("기존 송금 삭제"):
+            save("transfers", t, remove=True)
+    with history.container(border=True, key="transfer_history"):
+        records = state.transfers.values()
+        st.subheader("저장된 송금")
+        st.markdown(f'<div class="expense-total">총 송금액 · {len(records)}건'
+                    f'<strong>{won(sum(item.amount for item in records))}</strong></div>', unsafe_allow_html=True)
+        if not records:
+            st.caption("이미 주고받은 돈이 없다면 ‘정산 결과’ 탭으로 이동하세요.")
+        for item in records:
+            details, action = st.columns([4, 1], vertical_alignment="center")
+            details.markdown(f'<div class="share-row"><span>{escape(names[item.sender_id])} → '
+                             f'{escape(names[item.receiver_id])}</span><b>{won(item.amount)}</b></div>',
+                             unsafe_allow_html=True)
+            action.button("수정", key=f"edit_transfers_{item.id}", on_click=select_record,
+                          args=("transfers", item.id))
+
 
 
 def payments(plan):
@@ -364,6 +380,3 @@ for tab, render in ((expense_tab, expenses), (transfer_tab, transfers), (result_
             render()
             if tab is expense_tab:
                 expense_history()
-            elif tab is transfer_tab:
-                saved_records("transfers", "기존 송금 내역",
-                              lambda t: f"{names[t.sender_id]} → {names[t.receiver_id]} · {won(t.amount)}")
