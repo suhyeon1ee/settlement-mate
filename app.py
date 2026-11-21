@@ -34,10 +34,23 @@ st.markdown("""
 @media(prefers-color-scheme:dark){.stApp {background:var(--background-color);color:var(--text-color)}.st-key-ticket {color:#152542}}
 .st-key-new_settlement button {min-height:3.15rem;padding:.65rem 1.15rem;border-radius:.75rem;background:#2452e9;color:white}
 .st-key-new_settlement button p {font-size:1.08rem;font-weight:700}
-.st-key-expense_form,.st-key-expense_preview {background:var(--secondary-background-color,#fff);border-radius:16px}
-.st-key-expense_preview {border-bottom:3px dashed #aab6ca}
-.share-row {display:flex;justify-content:space-between;gap:1rem;padding:.8rem 0;border-bottom:1px solid #dbe2ef;overflow-wrap:anywhere}
-.share-row b {white-space:nowrap;font-variant-numeric:tabular-nums}
+.st-key-expense_form,.st-key-expense_preview,.st-key-expense_history {background:#fff;color:#152542;border:1px solid #ced8e7;border-radius:14px;padding:1rem 1.25rem;gap:.5rem}
+.st-key-expense_form h3,.st-key-expense_preview h3,.st-key-expense_history h3 {font-size:1.22rem;line-height:1.3;padding:0;margin:0}
+.stApp .expense-heading {font-size:clamp(1.65rem,2.6vw,2rem);padding:0;margin:0 0 .25rem}
+.expense-intro {color:#53647b;margin:0}
+.expense-rule {border-top:1px solid #dae2ed;margin:.25rem 0}
+.st-key-expense_form label p {font-weight:650}
+.st-key-expense_form button:is([kind^="pills"],[kind^="segmented_control"]):is(:hover,:focus-visible) {color:#1744ba;border-color:#3564de;outline-color:#3564de}
+.st-key-expense_form button[kind="pillsActive"] {background:#e5edff!important;color:#163b99!important;border-color:#8eaeff!important}
+.st-key-expense_form button[kind="pillsActive"]:before {content:"✓";font-weight:800}
+.st-key-expense_form button[kind="segmented_controlActive"] {background:#2452e9!important;color:white!important;border-color:#2452e9!important}
+.expense-total {padding:.8rem 1rem;background:#edf3ff;border-radius:10px;color:#364d73}
+.expense-total strong {display:block;color:#142b55;font-size:clamp(1.8rem,3.4vw,2.8rem);line-height:1.25;font-weight:800;letter-spacing:-.045em;overflow-wrap:anywhere}
+.share-row,.saved-expense {display:flex;align-items:center;justify-content:space-between;gap:.7rem;padding:.55rem 0;border-bottom:1px solid #e0e6ef;overflow-wrap:anywhere}
+.share-row b,.saved-expense b {white-space:nowrap;font-variant-numeric:tabular-nums}
+.saved-expense small {display:block;color:#52647e}
+.st-key-expense_history {margin-top:.5rem}
+@media(prefers-color-scheme:dark){.st-key-expense_form,.st-key-expense_history,.st-key-expense_preview {background:var(--background-color);color:var(--text-color)}.expense-intro,.saved-expense small {color:inherit}}
 .st-key-new_settlement button[kind] {background:white;color:#2452e9;border:2px solid #2452e9}
 </style>
 """, unsafe_allow_html=True)
@@ -165,8 +178,8 @@ def delete_person(p):
 
 
 def expenses():
-    st.title("지출 입력")
-    st.write("결제 내역을 입력하고 함께 나눌 사람을 선택하세요.")
+    st.markdown('<h1 class="expense-heading">지출 입력</h1>'
+                '<p class="expense-intro">결제 내역을 입력하고 함께 나눌 사람을 선택하세요.</p>', unsafe_allow_html=True)
     form, preview = st.columns([1.7, 1])
     with form.container(border=True, key="expense_form"):
         e, key = editor("expenses", "지출")
@@ -176,7 +189,7 @@ def expenses():
         with payer_col:
             payer = pick("결제자", e.payer_id if e else ids[0], key + "_payer")
         amount = amount_col.number_input("지출 금액(원)", min_value=0, value=e.amount if e else 0, key=key + "_amount")
-        st.divider()
+        st.markdown('<div class="expense-rule"></div>', unsafe_allow_html=True)
         st.subheader("분담 설정")
         selected = st.pills("함께 나눌 사람", ids, selection_mode="multi", format_func=names.get,
                             default=[s.participant_id for s in e.shares] if e else [], key=key + "_members")
@@ -200,8 +213,8 @@ def expenses():
             save("expenses", e, remove=True)
     with preview.container(border=True, key="expense_preview"):
         st.subheader("분담 미리보기")
-        st.metric("총 지출 금액", won(amount))
-        st.divider()
+        st.markdown(f'<div class="expense-total">총 지출 금액<strong>{won(amount)}</strong></div>',
+                    unsafe_allow_html=True)
         if mode is None:
             st.info("분담 방식을 선택하세요.")
             return
@@ -218,6 +231,24 @@ def expenses():
                         unsafe_allow_html=True)
     if submitted:
         save("expenses", entry)
+
+
+def expense_history():
+    records = state.expenses.values()
+    with st.container(key="expense_history"):
+        st.subheader("저장된 지출")
+        if not records:
+            st.caption("지출을 저장하면 여기에 표시돼요.")
+            return
+        st.caption(f"{len(records)}건 · 합계 {won(sum(e.amount for e in records))}")
+        for expense in records:
+            details, action = st.columns([5, 1], vertical_alignment="center")
+            details.markdown(
+                f'<div class="saved-expense"><span><strong>{escape(expense.title)}</strong>'
+                f'<small>결제자 {escape(names[expense.payer_id])} · {len(expense.shares)}명 분담</small></span>'
+                f'<b>{won(expense.amount)}</b></div>', unsafe_allow_html=True)
+            action.button("수정", key=f"edit_expenses_{expense.id}", on_click=select_record,
+                          args=("expenses", expense.id))
 
 
 def transfers():
@@ -332,7 +363,7 @@ for tab, render in ((expense_tab, expenses), (transfer_tab, transfers), (result_
         else:
             render()
             if tab is expense_tab:
-                saved_records("expenses", "저장된 지출", lambda e: f"{e.title} · {names[e.payer_id]} · {won(e.amount)}")
+                expense_history()
             elif tab is transfer_tab:
                 saved_records("transfers", "기존 송금 내역",
                               lambda t: f"{names[t.sender_id]} → {names[t.receiver_id]} · {won(t.amount)}")
