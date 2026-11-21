@@ -64,6 +64,14 @@ st.markdown("""
 .balance-label {font-size:.88rem;color:#324b7c;background:#edf2fb;padding:.2rem .5rem;border-radius:.4rem}
 .st-key-result_basis th {background:#edf2fb;color:#192f55}
 .st-key-result_basis td:not(:first-child) {text-align:right;font-variant-numeric:tabular-nums}
+.st-key-result_details details {background:var(--background-color,#fff);border:1px solid #ced8e7;border-radius:14px;overflow:hidden}
+.st-key-result_details summary {padding:.9rem 1.2rem}
+.st-key-result_details summary p {font-weight:750;font-size:1.05rem}
+.st-key-result_details .result-total {gap:.8rem;margin:.4rem 0}
+.st-key-result_details .result-total b {font-size:1.16rem;margin-left:.35rem}
+.st-key-result_details th {background:#edf2fb;color:#192f55}
+.st-key-result_details td:last-child {text-align:right;font-weight:650;font-variant-numeric:tabular-nums}
+.st-key-result_details h3 {font-size:1.12rem}
 </style>
 """, unsafe_allow_html=True)
 brand, restart = st.columns([4, 1])
@@ -334,28 +342,34 @@ def results():
                   for pid, r in rows.items()])
         st.download_button("개인별 잔액 CSV 다운로드", data=balances_csv(rows, names),
                            file_name="balances.csv", mime="text/csv")
-    with st.expander("지출별 계산 근거"):
-        pid = st.selectbox("지출별 계산 근거를 볼 참여자", ids, format_func=names.get)
-        details = []
-        for e in state.expenses.values():
-            parts = split_expense(e, people)
-            if e.payer_id == pid or pid in parts:
-                details.append({"지출명": e.title, "내 결제액": won(e.amount if e.payer_id == pid else 0),
-                                "내 부담액": won(parts.get(pid, 0))})
-        if details:
-            st.table(details)
-        else:
-            st.caption("이 참여자와 관련된 지출이 없습니다.")
-    with st.expander("송금 횟수와 알고리즘 비교"):
-        comparison(result)
+    with st.container(key="result_details"):
+        with st.expander("지출별 계산 근거"):
+            pid = st.selectbox("지출별 계산 근거를 볼 참여자", ids, format_func=names.get)
+            details = []
+            for e in state.expenses.values():
+                parts = split_expense(e, people)
+                if e.payer_id == pid or pid in parts:
+                    details.append({"지출명": e.title, "내 결제액": won(e.amount if e.payer_id == pid else 0),
+                                    "내 부담액": won(parts.get(pid, 0))})
+            st.markdown(f'<div class="result-total"><span>결제 합계 <b>{won(rows[pid].paid)}</b></span>'
+                        f'<span>부담 합계 <b>{won(rows[pid].owed)}</b></span></div>', unsafe_allow_html=True)
+            if details:
+                st.table(details)
+            else:
+                st.caption("이 참여자와 관련된 지출이 없습니다.")
+        with st.expander("송금 횟수와 알고리즘 비교"):
+            comparison(result)
 
 
 def comparison(result):
+    saved_count = len(result.greedy_plan) - len(result.plan)
+    summary = f"송금 {saved_count}건 절감" if saved_count else "두 방식의 송금 건수가 같아요"
+    st.markdown(f'<div class="result-total"><strong>{summary}</strong></div>', unsafe_allow_html=True)
     st.table([{"방식": "그리디", "송금 건수": len(result.greedy_plan), "시간(ms)": f"{result.greedy_ms:.3f}"},
               {"방식": "백트래킹", "송금 건수": len(result.plan), "시간(ms)": f"{result.search_ms:.3f}"}])
-    st.write(f"{len(result.greedy_plan) - len(result.plan)}건 절감 · 방문 상태 {result.visited}개 · "
+    st.caption(f"방문 상태 {result.visited}개 · "
              f"하한 가지치기 {result.bound_cuts}개 · 중복 상태 생략 {result.duplicate_cuts}개")
-    st.write("그리디 송금 목록")
+    st.subheader("그리디 송금 목록")
     payments(result.greedy_plan)
 
 
