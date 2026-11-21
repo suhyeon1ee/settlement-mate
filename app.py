@@ -34,21 +34,21 @@ st.markdown("""
 @media(prefers-color-scheme:dark){.stApp {background:var(--background-color);color:var(--text-color)}.st-key-ticket {color:#152542}}
 .st-key-new_settlement button {min-height:3.15rem;padding:.65rem 1.15rem;border-radius:.75rem;background:#2452e9;color:white}
 .st-key-new_settlement button p {font-size:1.08rem;font-weight:700}
-.st-key-expense_form,.st-key-expense_preview,.st-key-expense_history {background:#fff;color:#152542;border:1px solid #ced8e7;border-radius:14px;padding:1rem 1.25rem;gap:.5rem}
-.st-key-expense_form h3,.st-key-expense_preview h3,.st-key-expense_history h3 {font-size:1.22rem;line-height:1.3;padding:0;margin:0}
+.st-key-expense_form,.st-key-expense_preview,.st-key-expense_history {background:#fff;color:#152542;border:1px solid #ced8e7;border-radius:14px;padding:1.25rem 1.4rem;gap:1rem}
+.st-key-expense_form h3,.st-key-expense_preview h3,.st-key-expense_history h3 {font-size:1.22rem;line-height:1.45;padding:0 0 .45rem;margin:0}
 .stApp .expense-heading {font-size:clamp(1.65rem,2.6vw,2rem);padding:0;margin:0 0 .25rem}
-.expense-intro {color:#53647b;margin:0}
-.expense-rule {border-top:1px solid #dae2ed;margin:.25rem 0}
+.expense-intro {color:#53647b;margin:0 0 .9rem;line-height:1.55}
+.expense-rule {border-top:1px solid #dae2ed;margin:.55rem 0 .7rem}
 .st-key-expense_form label p {font-weight:650}
 .st-key-expense_form button:is([kind^="pills"],[kind^="segmented_control"]):is(:hover,:focus-visible) {color:#1744ba;border-color:#3564de;outline-color:#3564de}
-.st-key-expense_form button[kind="pillsActive"] {background:#e5edff!important;color:#163b99!important;border-color:#8eaeff!important}
-.st-key-expense_form button[kind="pillsActive"]:before {content:"✓";font-weight:800}
-.st-key-expense_form button[kind="segmented_controlActive"] {background:#2452e9!important;color:white!important;border-color:#2452e9!important}
-.expense-total {padding:.8rem 1rem;background:#edf3ff;border-radius:10px;color:#364d73}
+.st-key-expense_form button:is([kind="pillsActive"],[data-testid="stBaseButton-pillsActive"]) {background:#e5edff!important;color:#163b99!important;border-color:#8eaeff!important}
+.st-key-expense_form button:is([kind="pillsActive"],[data-testid="stBaseButton-pillsActive"]):before {content:"✓";font-weight:800}
+.st-key-expense_form button:is([kind="segmented_controlActive"],[data-testid="stBaseButton-segmented_controlActive"]) {background:#2452e9!important;color:white!important;border-color:#2452e9!important}
+.expense-total {margin:.25rem 0 .8rem;padding:.8rem 1rem;background:#edf3ff;border-radius:10px;color:#364d73}
 .expense-total strong {display:block;color:#142b55;font-size:clamp(1.8rem,3.4vw,2.8rem);line-height:1.25;font-weight:800;letter-spacing:-.045em;overflow-wrap:anywhere}
 .share-row,.saved-expense {display:flex;align-items:center;justify-content:space-between;gap:.7rem;padding:.55rem 0;border-bottom:1px solid #e0e6ef;overflow-wrap:anywhere}
 .share-row b,.saved-expense b {white-space:nowrap;font-variant-numeric:tabular-nums}
-.saved-expense small {display:block;color:#52647e}
+.saved-expense small {display:block;margin-top:.25rem;line-height:1.5;color:#52647e}
 .st-key-expense_history {margin-top:.5rem}
 @media(prefers-color-scheme:dark){.st-key-expense_form,.st-key-expense_history,.st-key-expense_preview {background:var(--background-color);color:var(--text-color)}.expense-intro,.saved-expense small {color:inherit}}
 .st-key-new_settlement button[kind] {background:white;color:#2452e9;border:2px solid #2452e9}
