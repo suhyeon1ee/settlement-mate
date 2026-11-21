@@ -48,9 +48,9 @@ class SettlementScreenTests(unittest.TestCase):
         self.widget("text_input", "지출명").input(title)
         self.widget("selectbox", "결제자").select(self.ids[payer])
         self.widget("number_input", "지출 금액(원)").set_value(amount)
-        self.widget("multiselect", "부담자").set_value([self.ids[n] for n in members])
+        self.widget("pills", "함께 나눌 사람").set_value([self.ids[n] for n in members])
         if amounts:
-            self.widget("radio", "분담 방식").set_value("직접 지정").run()
+            self.widget("segmented_control", "분담 방식").set_value("직접 지정").run()
             for name, share in zip(members, amounts):
                 self.widget("number_input", f"{name} 부담액(원)").set_value(share)
         self.click("지출 저장")
