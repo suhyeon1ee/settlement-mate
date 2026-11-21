@@ -56,6 +56,14 @@ st.markdown("""
 .st-key-transfer_history .expense-total strong {font-size:clamp(1.55rem,2.2vw,2.1rem)}
 .st-key-transfer_history .share-row {padding:.85rem 0}
 .st-key-transfer_form,.st-key-transfer_history {padding:clamp(1rem,2vw,1.8rem)}
+.st-key-result_plan,.st-key-result_balances,.st-key-result_basis {background:var(--background-color,#fff);border-radius:14px;padding:clamp(1rem,2vw,1.7rem)}
+.st-key-result_plan h2,.st-key-result_balances h2 {font-size:1.45rem;padding:0 0 .35rem}
+.st-key-result_plan h3 {font-size:1rem}
+.result-total {display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;padding:.85rem 1rem;background:#eaf1ff;color:#193883;border-radius:.7rem}
+.result-total b {font-size:1.5rem}
+.balance-label {font-size:.88rem;color:#324b7c;background:#edf2fb;padding:.2rem .5rem;border-radius:.4rem}
+.st-key-result_basis th {background:#edf2fb;color:#192f55}
+.st-key-result_basis td:not(:first-child) {text-align:right;font-variant-numeric:tabular-nums}
 </style>
 """, unsafe_allow_html=True)
 brand, restart = st.columns([4, 1])
@@ -289,7 +297,9 @@ def payments(plan):
 
 
 def results():
-    if st.button("정산 계산", type="primary"):
+    heading, action = st.columns([3, 1], vertical_alignment="center")
+    heading.title("정산 결과")
+    if action.button("정산 계산", type="primary"):
         rows = calculate_balances(people, state.expenses.values(), state.transfers.values())
         state.result = rows, backtracking_settlement(rows)
     if state.result is None:
@@ -298,28 +308,44 @@ def results():
     rows, result = state.result
     labels = {"optimal": "최소 송금 횟수 확정", "timeout": "시간 제한 내 현재까지 찾은 최선",
               "settled": "추가 송금 없음"}
-    st.subheader(f"{labels[result.status]} · {len(result.plan)}건")
-    payments(result.plan)
-    st.download_button("송금 목록 CSV 다운로드", data=settlement_csv(result.plan, names, labels[result.status]),
-                       file_name="settlement.csv", mime="text/csv")
-    st.subheader("개인별 정산 근거")
-    st.caption("정산 잔액 = 결제액 − 부담액 + 이미 보낸 금액 − 이미 받은 금액. 양수는 받을 금액, 음수는 보낼 금액입니다.")
-    st.table([{"참여자": names[pid], "결제액": won(r.paid), "부담액": won(r.owed),
-               "이미 보냄": won(r.sent), "이미 받음": won(r.received), "정산 잔액": won(r.net)}
-              for pid, r in rows.items()])
-    st.download_button("개인별 잔액 CSV 다운로드", data=balances_csv(rows, names),
-                       file_name="balances.csv", mime="text/csv")
-    pid = st.selectbox("지출별 계산 근거를 볼 참여자", ids, format_func=names.get)
-    details = []
-    for e in state.expenses.values():
-        parts = split_expense(e, people)
-        if e.payer_id == pid or pid in parts:
-            details.append({"지출명": e.title, "내 결제액": won(e.amount if e.payer_id == pid else 0),
-                            "내 부담액": won(parts.get(pid, 0))})
-    if details:
-        st.table(details)
-    else:
-        st.caption("이 참여자와 관련된 지출이 없습니다.")
+    left, right = st.columns([1.25, 1])
+    with left.container(border=True, key="result_plan"):
+        st.header("남은 송금")
+        st.subheader(f"{labels[result.status]} · {len(result.plan)}건")
+        st.markdown(f'<div class="result-total">총 송금액 <b>{won(sum(p.amount for p in result.plan))}</b></div>',
+                    unsafe_allow_html=True)
+        for p in result.plan:
+            st.markdown(f'<div class="share-row"><span>{escape(names[p.sender_id])} → '
+                        f'{escape(names[p.receiver_id])}</span><b>{won(p.amount)}</b></div>', unsafe_allow_html=True)
+        st.download_button("송금 목록 CSV 다운로드", data=settlement_csv(result.plan, names, labels[result.status]),
+                           file_name="settlement.csv", mime="text/csv")
+    with right.container(border=True, key="result_balances"):
+        st.header("개인별 잔액")
+        for pid, balance in rows.items():
+            status = "받을 금액" if balance.net > 0 else "보낼 금액" if balance.net < 0 else "정산 완료"
+            st.markdown(f'<div class="share-row"><span>{escape(names[pid])}</span>'
+                        f'<span class="balance-label">{status}</span><b>{won(abs(balance.net))}</b></div>',
+                        unsafe_allow_html=True)
+    with st.container(border=True, key="result_basis"):
+        st.subheader("개인별 정산 근거")
+        st.caption("정산 잔액 = 결제액 − 부담액 + 이미 보낸 금액 − 이미 받은 금액. 양수는 받을 금액, 음수는 보낼 금액입니다.")
+        st.table([{"참여자": names[pid], "결제액": won(r.paid), "부담액": won(r.owed),
+                   "이미 보냄": won(r.sent), "이미 받음": won(r.received), "정산 잔액": won(r.net)}
+                  for pid, r in rows.items()])
+        st.download_button("개인별 잔액 CSV 다운로드", data=balances_csv(rows, names),
+                           file_name="balances.csv", mime="text/csv")
+    with st.expander("지출별 계산 근거"):
+        pid = st.selectbox("지출별 계산 근거를 볼 참여자", ids, format_func=names.get)
+        details = []
+        for e in state.expenses.values():
+            parts = split_expense(e, people)
+            if e.payer_id == pid or pid in parts:
+                details.append({"지출명": e.title, "내 결제액": won(e.amount if e.payer_id == pid else 0),
+                                "내 부담액": won(parts.get(pid, 0))})
+        if details:
+            st.table(details)
+        else:
+            st.caption("이 참여자와 관련된 지출이 없습니다.")
     with st.expander("송금 횟수와 알고리즘 비교"):
         comparison(result)
 
